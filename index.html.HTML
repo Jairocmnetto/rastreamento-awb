@@ -1,0 +1,1021 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <meta name="description" content="Sistema de rastreamento aéreo de AWBs e cargas">
+  <title>Rastreamento Aéreo | Monitoramento de Cargas</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233B82F6'><path d='M2.01 21l20.99-9L2.01 3 2 10l15 2-15 2z'/></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            dark: {
+              50: '#f9fafb',
+              100: '#f3f4f6',
+              200: '#e5e7eb',
+              300: '#d1d5db',
+              400: '#9ca3af',
+              500: '#6b7280',
+              600: '#4b5563',
+              700: '#374151',
+              800: '#1f2937',
+              900: '#111827',
+            },
+          },
+          boxShadow: {
+            'card': '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)',
+            'card-dark': '0 1px 3px 0 rgba(0, 0, 0, 0.25), 0 1px 2px 0 rgba(0, 0, 0, 0.2)',
+          },
+          fontFamily: {
+            'sans': ['Inter', 'system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+    
+    @keyframes fly {
+      0% { transform: translateX(0) rotate(0deg); opacity: 0.6; }
+      50% { transform: translateX(10px) rotate(5deg); opacity: 1; }
+      100% { transform: translateX(0) rotate(0deg); opacity: 0.6; }
+    }
+    .animate-fly {
+      animation: fly 1.5s infinite ease-in-out;
+    }
+    
+    @keyframes pulse {
+      0% { opacity: 0.8; }
+      50% { opacity: 1; }
+      100% { opacity: 0.8; }
+    }
+    
+    body, .mode-transition, button, a {
+      transition: all 0.3s ease;
+    }
+    
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.05);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+    }
+    
+    @media (max-width: 640px) {
+      .mobile-padding {
+        padding-left: 1rem;
+        padding-right: 1rem;
+      }
+      .mobile-text-lg {
+        font-size: 1.125rem;
+      }
+    }
+    
+    .sticky-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+    }
+    .light .sticky-header {
+      background-color: rgba(249, 250, 251, 0.85);
+    }
+    .dark .sticky-header {
+      background-color: rgba(17, 24, 39, 0.85);
+    }
+    
+    .status-badge {
+      @apply px-2 py-1 rounded-full text-xs font-semibold whitespace-nowrap;
+    }
+    
+    .tooltip {
+      position: relative;
+      display: inline-block;
+    }
+    .tooltip .tooltiptext {
+      visibility: hidden;
+      width: 120px;
+      background-color: #333;
+      color: #fff;
+      text-align: center;
+      border-radius: 6px;
+      padding: 5px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      margin-left: -60px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    .tooltip .tooltiptext::after {
+      content: "";
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      margin-left: -5px;
+      border-width: 5px;
+      border-style: solid;
+      border-color: #333 transparent transparent transparent;
+    }
+    .tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    .dark .tooltip .tooltiptext {
+      background-color: #111827;
+    }
+    .dark .tooltip .tooltiptext::after {
+      border-color: #111827 transparent transparent transparent;
+    }
+    
+    .btn-press:active {
+      transform: scale(0.98);
+    }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-800 dark:bg-gray-900 dark:text-gray-100 font-sans antialiased light">
+  <div class="min-h-screen flex flex-col">
+    <div class="sticky-header border-b border-gray-200 dark:border-gray-700">
+      <div class="px-4 md:px-6 py-3">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-3 gap-3">
+          <div>
+            <h1 class="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100 mobile-text-lg">Dashboard de Rastreamento</h1>
+            <p class="text-xs md:text-sm text-gray-500 dark:text-gray-400">Monitoramento em tempo real de cargas aéreas</p>
+          </div>
+          <div class="flex items-center space-x-2">
+            <button id="themeToggle" class="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors btn-press">
+              <svg id="sunIcon" class="w-5 h-5 text-gray-700 dark:text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+              </svg>
+              <svg id="moonIcon" class="w-5 h-5 text-gray-700 dark:text-blue-400 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+              </svg>
+            </button>
+            <button id="refreshBtn" class="flex items-center space-x-2 px-3 py-1.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors btn-press">
+              <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span class="hidden md:inline">Atualizar</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 md:gap-3">
+          <div class="bg-white dark:bg-gray-700 rounded-lg shadow-card dark:shadow-card-dark p-3 border-l-4 border-blue-500">
+            <div>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-300 font-medium">Total de AWBs</p>
+              <h3 class="text-xl md:text-2xl font-bold mt-1" id="totalAwbs">-</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="totalVariation">+2.5% vs mês passado</p>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-gray-700 rounded-lg shadow-card dark:shadow-card-dark p-3 border-l-4 border-yellow-500">
+            <div>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-300 font-medium">Em Trânsito</p>
+              <h3 class="text-xl md:text-2xl font-bold mt-1" id="inTransit">-</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="transitTime">-</p>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-gray-700 rounded-lg shadow-card dark:shadow-card-dark p-3 border-l-4 border-green-500">
+            <div>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-300 font-medium">Disponíveis</p>
+              <h3 class="text-xl md:text-2xl font-bold mt-1" id="available">-</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="availableDays"></p>
+            </div>
+          </div>
+
+          <div class="bg-white dark:bg-gray-700 rounded-lg shadow-card dark:shadow-card-dark p-3 border-l-4 border-purple-500">
+            <div>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-300 font-medium">Outros Status</p>
+              <h3 class="text-xl md:text-2xl font-bold mt-1" id="otherStatus">-</h3>
+              <p class="text-xs text-gray-500 dark:text-gray-400 mt-1" id="otherDetails">3 coletas parciais</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <main class="flex-1 overflow-y-auto pt-2 pb-4">
+      <div class="mobile-padding">
+        <div id="loading" class="flex flex-col items-center justify-center py-8 mb-4 transition-opacity duration-300">
+          <div class="relative">
+            <svg class="w-14 h-14 text-blue-500 dark:text-blue-400 animate-fly mb-3" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M2.01 21l20.99-9L2.01 3 2 10l15 2-15 2z" />
+            </svg>
+            <div class="absolute -inset-3 border-4 border-blue-200 dark:border-blue-900 rounded-full animate-ping opacity-75"></div>
+          </div>
+          <span class="text-blue-600 dark:text-blue-400 font-semibold text-base md:text-lg">Carregando dados...</span>
+          <p class="text-sm md:text-base text-gray-500 dark:text-gray-300 mt-1 text-center">Aguarde enquanto buscamos as informações mais recentes</p>
+        </div>
+
+        <div id="alertsContainer" class="mb-4 space-y-2">
+        </div>
+
+        <div class="bg-white dark:bg-gray-700 rounded-xl shadow-card dark:shadow-card-dark overflow-hidden mode-transition">
+          <div class="px-4 md:px-6 py-3 border-b border-gray-200 dark:border-gray-600 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
+            <div>
+              <h2 class="text-lg md:text-xl font-semibold text-gray-800 dark:text-gray-100">Histórico de AWBs</h2>
+              <p class="text-xs md:text-sm text-gray-500 dark:text-gray-300" id="lastUpdate">Última atualização: -</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+              <div class="relative w-full sm:w-56">
+                <input type="text" id="searchInput" placeholder="Pesquisar (digite números)" 
+                      class="w-full px-3 py-1.5 text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+                <svg class="absolute right-2.5 top-2 h-4 w-4 text-gray-400 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <div class="relative">
+                <button id="viewToggle" class="flex items-center space-x-1.5 px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors btn-press">
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+                  </svg>
+                  <span class="hidden sm:inline text-sm">Visualização</span>
+                </button>
+                <div id="viewDropdown" class="hidden absolute right-0 mt-1 w-40 bg-white dark:bg-gray-700 rounded-md shadow-lg z-10 border border-gray-200 dark:border-gray-600">
+                  <div class="py-1">
+                    <button class="view-option block w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors" data-view="table">
+                      <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M3 14h18m-9-4v8m-7 0h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        <span>Tabela</span>
+                      </div>
+                    </button>
+                    <button class="view-option block w-full text-left px-3 py-1.5 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors" data-view="cards">
+                      <div class="flex items-center space-x-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                        </svg>
+                        <span>Cards</span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div id="tableView" class="overflow-x-auto scrollbar-hide">
+            <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-600" id="awbTable">
+              <thead class="bg-gray-50 dark:bg-gray-600">
+                <tr>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Fornecedor</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Saída</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">NF's</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">AWB</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Chegada</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Marca</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Material</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Rastreio</th>
+                  <th scope="col" class="px-4 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Documentos</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody" class="bg-white dark:bg-gray-700 divide-y divide-gray-200 dark:divide-gray-600">
+              </tbody>
+            </table>
+          </div>
+          
+          <div id="cardsView" class="hidden p-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          </div>
+          
+          <div class="px-4 md:px-6 py-3 border-t border-gray-200 dark:border-gray-600 flex flex-col sm:flex-row justify-between items-center gap-3 text-xs md:text-sm text-gray-500 dark:text-gray-300">
+            <div id="tableInfo">Mostrando 0 de 0 registros</div>
+            <div class="flex items-center space-x-2">
+              <button id="prevPage" class="px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50 transition-colors btn-press" disabled>Anterior</button>
+              <span id="pageInfo">Página 1</span>
+              <button id="nextPage" class="px-2.5 py-1 rounded border border-gray-300 dark:border-gray-600 disabled:opacity-50 transition-colors btn-press" disabled>Próxima</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 p-3">
+      <div class="flex flex-col items-center text-center">
+        <div class="text-xs md:text-sm text-gray-500 dark:text-gray-400 mb-1">
+          &copy; 2025 Equipe PCP - Planejamento e Controle de Produção
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 text-xs md:text-sm text-gray-500 dark:text-gray-400">
+          <div>Contato: Ramal 8264 ou 8271</div>
+          <div>Suporte: jairo.melo@grupodass.com.br</div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbxukDp2YAsO9eHjZ_IPb9ClSy7kSUwA8ZPSk3J427q8talXXPlUnAnuCZYNX-Ddubed/exec";
+    let allData = [];
+    let currentPage = 1;
+    const rowsPerPage = 10;
+    let filteredData = [];
+    let currentView = 'table';
+
+    function formatDate(dateString) {
+      if (!dateString) return '-';
+      const options = { day: '2-digit', month: '2-digit', year: 'numeric' };
+      return new Date(dateString).toLocaleDateString('pt-BR', options);
+    }
+
+    function getStatusClass(status) {
+      if (!status) return "bg-gray-100 dark:bg-gray-500 text-gray-800 dark:text-gray-200";
+      
+      const statusUpper = status.toString().toUpperCase();
+      
+      if (statusUpper.includes("EM TRÂNSITO")) {
+        return "bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200";
+      } else if (statusUpper.includes("DISPONÍVEL PARA RETIRADA") || statusUpper.includes("DISPONIVEL PARA RETIRADA")) {
+        return "bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200";
+      } else if (statusUpper.includes("COLETADO PARCIAL") || statusUpper.includes("PARCIAL")) {
+        return "bg-blue-100 dark:bg-blue-900/50 text-blue-800 dark:text-blue-200";
+      } else if (statusUpper.includes("AGUARDANDO AWB")) {
+        return "bg-purple-100 dark:bg-purple-900/50 text-purple-800 dark:text-purple-200 pulse";
+      } else if (statusUpper.includes("COLETA ERRADA")) {
+        return "bg-red-100 dark:bg-red-900/50 text-red-800 dark:text-red-200";
+      } else {
+        return "bg-gray-100 dark:bg-gray-500 text-gray-800 dark:text-gray-200";
+      }
+    }
+
+    function calculateMonthlyStats(data) {
+      const now = new Date();
+      const currentMonth = now.getMonth();
+      const currentYear = now.getFullYear();
+      const prevMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+      const prevYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+      const currentMonthData = data.filter(item => {
+        const date = new Date(item["DATA DE SAIDA"]);
+        return date.getMonth() === currentMonth && date.getFullYear() === currentYear;
+      });
+
+      const prevMonthData = data.filter(item => {
+        const date = new Date(item["DATA DE SAIDA"]);
+        return date.getMonth() === prevMonth && date.getFullYear() === prevYear;
+      });
+
+      return {
+        currentMonthCount: currentMonthData.length,
+        prevMonthCount: prevMonthData.length
+      };
+    }
+
+    function calculateTransitTime(data) {
+      const now = new Date();
+      const transitItems = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return status?.includes("EM TRÂNSITO");
+      });
+      
+      const transitTimes = transitItems.map(item => {
+        const saida = new Date(item["DATA DE SAIDA"]);
+        return Math.ceil((now - saida) / (1000 * 60 * 60 * 24));
+      });
+
+      return {
+        transitCount: transitItems.length,
+        delayedCount: transitTimes.filter(days => days > 2).length,
+        avgTransitTime: transitTimes.length > 0 
+          ? Math.round(transitTimes.reduce((a, b) => a + b, 0) / transitTimes.length)
+          : 0
+      };
+    }
+
+    function calculateAvailableStats(data) {
+      const now = new Date();
+      const availableItems = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return status?.includes("DISPONÍVEL") || status?.includes("DISPONIVEL");
+      });
+
+      const availableDelayed = availableItems.filter(item => {
+        if (!item["PREV DE CHEGADA"]) return false;
+        const chegada = new Date(item["PREV DE CHEGADA"]);
+        const diffTime = now - chegada;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return diffDays > 1; // Itens disponíveis há mais de 1 dia
+      });
+
+      return {
+        availableCount: availableItems.length,
+        delayedAvailableCount: availableDelayed.length
+      };
+    }
+
+    function calculateOtherStatus(data) {
+      const otherStatusItems = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return !["EM TRÂNSITO", "DISPONÍVEL PARA RETIRADA", "DISPONIVEL PARA RETIRADA"].some(s => status?.includes(s));
+      });
+
+      // Contagem flexível para diferentes variações de status
+      const partialCount = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return status?.includes("COLETADO PARCIAL") || 
+               status?.includes("COLETADO_PARCIAL") ||
+               status?.includes("PARCIALMENTE COLETADO") ||
+               status?.includes("PARCIAL");
+      }).length;
+
+      const waitingCount = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return status?.includes("AGUARDANDO AWB");
+      }).length;
+
+      const errorCount = data.filter(item => {
+        const status = item.STATUS?.toString().toUpperCase();
+        return status?.includes("COLETA ERRADA");
+      }).length;
+
+      return {
+        otherStatusCount: otherStatusItems.length,
+        partialCount,
+        waitingCount,
+        errorCount
+      };
+    }
+
+    function updateStats(data) {
+      // Monthly stats
+      const { currentMonthCount, prevMonthCount } = calculateMonthlyStats(data);
+      const totalAwbs = currentMonthCount + prevMonthCount;
+      const percentage = prevMonthCount > 0 
+        ? ((currentMonthCount - prevMonthCount) / prevMonthCount * 100).toFixed(1)
+        : '0.0';
+
+      document.getElementById("totalAwbs").textContent = totalAwbs;
+      document.getElementById("totalVariation").textContent = `${percentage}% vs mês passado`;
+
+      // Transit stats
+      const { transitCount, delayedCount, avgTransitTime } = calculateTransitTime(data);
+      document.getElementById("inTransit").textContent = transitCount;
+      document.getElementById("transitTime").textContent = 
+        `${delayedCount} atrasados | Média: ${avgTransitTime}d`;
+
+      // Available stats
+      const { availableCount, delayedAvailableCount } = calculateAvailableStats(data);
+      document.getElementById("available").textContent = availableCount;
+      document.getElementById("availableDays").textContent = 
+        `${delayedAvailableCount} ${delayedAvailableCount === 1 ? 'há +1 dia' : 'há +1 dias'}`;
+
+      // Other status
+      const { otherStatusCount, partialCount, waitingCount, errorCount } = calculateOtherStatus(data);
+      document.getElementById("otherStatus").textContent = otherStatusCount;
+      
+      // Formata a mensagem de detalhes
+      const statusDetails = [];
+      if (partialCount > 0) statusDetails.push(`${partialCount} ${partialCount === 1 ? 'parcial' : 'parciais'}`);
+      if (waitingCount > 0) statusDetails.push(`${waitingCount} ${waitingCount === 1 ? 'aguardando' : 'aguardando'}`);
+      if (errorCount > 0) statusDetails.push(`${errorCount} ${errorCount === 1 ? 'erro' : 'erros'}`);
+
+      document.getElementById("otherDetails").textContent = 
+        statusDetails.length > 0 ? statusDetails.join(", ") : "Sem status especiais";
+    }
+
+    function createAlerts(data) {
+      const alertsContainer = document.getElementById("alertsContainer");
+      alertsContainer.innerHTML = "";
+
+      // Alerta para coletas parciais
+      const { partialCount } = calculateOtherStatus(data);
+      if (partialCount > 0) {
+        const alert = document.createElement("div");
+        alert.className = "p-3 rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800";
+        alert.innerHTML = `
+          <div class="flex items-start">
+            <div class="flex-shrink-0 pt-0.5">
+              <svg class="h-5 w-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-3 flex-1">
+              <h3 class="text-sm font-medium text-blue-800 dark:text-blue-200">Coletas parciais</h3>
+              <div class="mt-1 text-sm text-blue-700 dark:text-blue-300">
+                <p>${partialCount} ${partialCount === 1 ? 'carga está' : 'cargas estão'} com coleta parcial.</p>
+              </div>
+            </div>
+          </div>
+        `;
+        alertsContainer.appendChild(alert);
+      }
+
+      // Alerta para AWBs aguardando
+      const { waitingCount } = calculateOtherStatus(data);
+      if (waitingCount > 0) {
+        const alert = document.createElement("div");
+        alert.className = "p-3 rounded-lg bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-800";
+        alert.innerHTML = `
+          <div class="flex items-start">
+            <div class="flex-shrink-0 pt-0.5">
+              <svg class="h-5 w-5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div class="ml-3 flex-1">
+              <h3 class="text-sm font-medium text-purple-800 dark:text-purple-200">AWBs pendentes</h3>
+              <div class="mt-1 text-sm text-purple-700 dark:text-purple-300">
+                <p>Existem ${waitingCount} AWBs aguardando processamento.</p>
+              </div>
+            </div>
+          </div>
+        `;
+        alertsContainer.appendChild(alert);
+      }
+
+      // Alerta para cargas atrasadas
+      const { delayedCount } = calculateTransitTime(data);
+      if (delayedCount > 0) {
+        const alert = document.createElement("div");
+        alert.className = "p-3 rounded-lg bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-800";
+        alert.innerHTML = `
+          <div class="flex items-start">
+            <div class="flex-shrink-0 pt-0.5">
+              <svg class="h-5 w-5 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div class="ml-3 flex-1">
+              <h3 class="text-sm font-medium text-yellow-800 dark:text-yellow-200">Cargas atrasadas</h3>
+              <div class="mt-1 text-sm text-yellow-700 dark:text-yellow-300">
+                <p>${delayedCount} ${delayedCount === 1 ? 'carga está' : 'cargas estão'} atrasadas no trânsito.</p>
+              </div>
+            </div>
+          </div>
+        `;
+        alertsContainer.appendChild(alert);
+      }
+
+      // Alerta para coletas erradas
+      const { errorCount } = calculateOtherStatus(data);
+      if (errorCount > 0) {
+        const alert = document.createElement("div");
+        alert.className = "p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800";
+        alert.innerHTML = `
+          <div class="flex items-start">
+            <div class="flex-shrink-0 pt-0.5">
+              <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div class="ml-3 flex-1">
+              <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Coletas com erro</h3>
+              <div class="mt-1 text-sm text-red-700 dark:text-red-300">
+                <p>${errorCount} ${errorCount === 1 ? 'coleta está' : 'coletas estão'} marcadas como erradas.</p>
+              </div>
+            </div>
+          </div>
+        `;
+        alertsContainer.appendChild(alert);
+      }
+    }
+
+    function updateView(data = filteredData, page = currentPage) {
+      if (currentView === 'table') {
+        updateTableView(data, page);
+      } else {
+        updateCardsView(data, page);
+      }
+    }
+
+    function updateTableView(data = filteredData, page = currentPage) {
+      const startIdx = (page - 1) * rowsPerPage;
+      const endIdx = startIdx + rowsPerPage;
+      const paginatedData = data.slice(startIdx, endIdx);
+      
+      const tbody = document.getElementById("tableBody");
+      tbody.innerHTML = "";
+
+      if (paginatedData.length === 0) {
+        const searchTerm = document.getElementById("searchInput").value.trim();
+        const isAwbSearch = /^\d{4,}$/.test(searchTerm);
+        
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td colspan="10" class="px-4 py-3 text-center text-gray-500 dark:text-gray-300">
+            ${isAwbSearch 
+              ? `Nenhum AWB encontrado com o número ${searchTerm}`
+              : 'Nenhum dado encontrado'}
+          </td>
+        `;
+        tbody.appendChild(tr);
+      } else {
+        paginatedData.forEach(item => {
+          const tr = document.createElement("tr");
+          tr.className = "mode-transition hover:bg-gray-50 dark:hover:bg-gray-600/50";
+
+          const statusClass = getStatusClass(item.STATUS);
+
+          const pdfLinks = [];
+          const nfList = (item["NF'S"] || "").split("/").map(nf => nf.trim());
+          for (let i = 1; i <= 11; i++) {
+            const key = `PDF_${i}`;
+            if (item[key]) {
+              const nota = nfList[i - 1] || `NF ${i}`;
+              pdfLinks.push(`
+                <a href="${item[key]}" target="_blank" 
+                   class="inline-flex items-center text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 group transition-colors">
+                  <span>${nota}</span>
+                  <svg class="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              `);
+            }
+          }
+
+          tr.innerHTML = `
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm font-medium text-gray-900 dark:text-gray-100">${item.FORNECEDOR || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm text-gray-500 dark:text-gray-300">${formatDate(item["DATA DE SAIDA"]) || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm text-gray-900 dark:text-gray-200 font-mono">${item["NF'S"] || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm font-medium text-blue-600 dark:text-blue-400 font-mono">${item.AWB || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <span class="${statusClass} status-badge">${item.STATUS || '-'}</span>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm text-gray-900 dark:text-gray-200">${formatDate(item["PREV DE CHEGADA"]) || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm text-gray-900 dark:text-gray-200">${item.MARCA || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <div class="text-xs md:text-sm text-gray-900 dark:text-gray-200">${item["TIPO DE MATERIAL"] || '-'}</div>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap">
+              <a href="${item["Click No Links"] || '#'}" target="_blank" 
+                 class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 group transition-colors">
+                <span class="text-xs md:text-sm">Rastrear</span>
+                <svg class="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+              </a>
+            </td>
+            <td class="px-4 py-2 whitespace-nowrap space-y-1">
+              ${pdfLinks.length > 0 ? pdfLinks.join("<br>") : '-'}
+            </td>
+          `;
+
+          tbody.appendChild(tr);
+        });
+      }
+
+      updatePaginationControls(data, page);
+    }
+
+    function updateCardsView(data = filteredData, page = currentPage) {
+      const startIdx = (page - 1) * rowsPerPage;
+      const endIdx = startIdx + rowsPerPage;
+      const paginatedData = data.slice(startIdx, endIdx);
+      
+      const cardsContainer = document.getElementById("cardsView");
+      cardsContainer.innerHTML = "";
+
+      if (paginatedData.length === 0) {
+        const searchTerm = document.getElementById("searchInput").value.trim();
+        const isAwbSearch = /^\d{4,}$/.test(searchTerm);
+        
+        cardsContainer.innerHTML = `
+          <div class="col-span-full py-6 text-center text-gray-500 dark:text-gray-300">
+            ${isAwbSearch 
+              ? `Nenhum AWB encontrado com o número ${searchTerm}`
+              : 'Nenhum dado encontrado'}
+          </div>
+        `;
+      } else {
+        paginatedData.forEach(item => {
+          const statusClass = getStatusClass(item.STATUS);
+
+          const pdfLinks = [];
+          const nfList = (item["NF'S"] || "").split("/").map(nf => nf.trim());
+          for (let i = 1; i <= 11; i++) {
+            const key = `PDF_${i}`;
+            if (item[key]) {
+              const nota = nfList[i - 1] || `NF ${i}`;
+              pdfLinks.push(`
+                <a href="${item[key]}" target="_blank" 
+                   class="inline-flex items-center text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-300 group transition-colors">
+                  <span class="text-xs">${nota}</span>
+                  <svg class="w-3 h-3 ml-1 opacity-0 group-hover:opacity-100 transition-opacity" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
+              `);
+            }
+          }
+
+          const card = document.createElement("div");
+          card.className = "bg-white dark:bg-gray-700 rounded-lg shadow-card dark:shadow-card-dark overflow-hidden mode-transition hover:shadow-md dark:hover:shadow-lg transition-shadow";
+          card.innerHTML = `
+            <div class="p-3 border-b border-gray-200 dark:border-gray-600">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="text-sm md:text-base font-semibold text-gray-800 dark:text-gray-100">${item.AWB || 'Sem AWB'}</h3>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">${item.FORNECEDOR || '-'}</p>
+                </div>
+                <span class="${statusClass} status-badge">${item.STATUS || '-'}</span>
+              </div>
+            </div>
+            <div class="p-3">
+              <div class="grid grid-cols-2 gap-3 mb-2">
+                <div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Saída</p>
+                  <p class="text-xs md:text-sm font-medium">${formatDate(item["DATA DE SAIDA"]) || '-'}</p>
+                </div>
+                <div>
+                  <p class="text-xs text-gray-500 dark:text-gray-400">Chegada</p>
+                  <p class="text-xs md:text-sm font-medium">${formatDate(item["PREV DE CHEGADA"]) || '-'}</p>
+                </div>
+              </div>
+              <div class="mb-2">
+                <p class="text-xs text-gray-500 dark:text-gray-400">NF's</p>
+                <p class="text-xs md:text-sm font-mono">${item["NF'S"] || '-'}</p>
+              </div>
+              <div class="mb-3">
+                <p class="text-xs text-gray-500 dark:text-gray-400">Marca/Material</p>
+                <p class="text-xs md:text-sm">${item.MARCA || '-'} / ${item["TIPO DE MATERIAL"] || '-'}</p>
+              </div>
+              <div class="flex flex-wrap gap-2">
+                <a href="${item["Click No Links"] || '#'}" target="_blank" 
+                   class="flex-1 px-2 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs md:text-sm rounded-md text-center hover:bg-blue-100 dark:hover:bg-blue-900/50 transition-colors btn-press">
+                  Rastrear
+                </a>
+                ${pdfLinks.length > 0 ? `
+                <button onclick="window.openMultipleTabs([${pdfLinks.map(link => `'${link.match(/href="([^"]*)"/)[1]}'`).join(',')}])" 
+                   class="flex items-center justify-center flex-1 px-2 py-1 bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400 text-xs md:text-sm rounded-md hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-colors btn-press">
+                   Docs <span class="ml-1 text-xxs md:text-xs bg-purple-100 dark:bg-purple-800/50 rounded-full px-1.5 py-0.5">${pdfLinks.length}</span>
+                </button>
+                ` : ''}
+              </div>
+            </div>
+          `;
+          cardsContainer.appendChild(card);
+        });
+      }
+
+      updatePaginationControls(data, page);
+    }
+
+    window.openMultipleTabs = function(urls) {
+      if (urls.length > 0) {
+        window.open(urls[0], '_blank');
+      }
+      urls.slice(1).forEach((url, index) => {
+        setTimeout(() => {
+          window.open(url, '_blank');
+        }, 100 * (index + 1));
+      });
+    };
+
+    function updatePaginationControls(data, page) {
+      const startIdx = (page - 1) * rowsPerPage;
+      const endIdx = startIdx + rowsPerPage;
+      
+      document.getElementById("prevPage").disabled = page <= 1;
+      document.getElementById("nextPage").disabled = endIdx >= data.length;
+      document.getElementById("pageInfo").textContent = `Página ${page} de ${Math.ceil(data.length / rowsPerPage)}`;
+      document.getElementById("tableInfo").textContent = `Mostrando ${startIdx + 1}-${Math.min(endIdx, data.length)} de ${data.length} registros`;
+    }
+
+    function filterData(searchTerm) {
+  if (!searchTerm) {
+    filteredData = [...allData];
+    updateView();
+    return;
+  }
+
+  const term = searchTerm.toLowerCase().trim();
+  
+  // Verifica se a pesquisa é um AWB (contém apenas números)
+  const isAwbSearch = /^\d{4,}$/.test(term);
+  
+  if (isAwbSearch) {
+    // Filtra especificamente por AWB quando a pesquisa contém apenas números
+    filteredData = allData.filter(item => 
+      item.AWB && item.AWB.toLowerCase().includes(term)
+    );
+  } else {
+    // Permite filtro normal se o usuário conseguir digitar algo não numérico (apesar da restrição no input)
+    filteredData = allData.filter(item => 
+      (item.AWB && item.AWB.toLowerCase().includes(term)) ||
+      (item["NF'S"] && item["NF'S"].toLowerCase().includes(term)) ||
+      (item.FORNECEDOR && item.FORNECEDOR.toLowerCase().includes(term)) ||
+      (item.MARCA && item.MARCA.toLowerCase().includes(term)) ||
+      (item.STATUS && item.STATUS.toString().toLowerCase().includes(term))
+    );
+  }
+
+  currentPage = 1;
+  updateView();
+}
+
+    function toggleView(view) {
+      currentView = view;
+      localStorage.setItem('preferredView', view);
+      
+      if (view === 'table') {
+        document.getElementById("tableView").classList.remove("hidden");
+        document.getElementById("cardsView").classList.add("hidden");
+      } else {
+        document.getElementById("tableView").classList.add("hidden");
+        document.getElementById("cardsView").classList.remove("hidden");
+      }
+      
+      updateView();
+    }
+
+    async function carregarTabela() {
+      try {
+        const loading = document.getElementById("loading");
+        const refreshBtn = document.getElementById("refreshBtn");
+        
+        loading.style.opacity = 1;
+        loading.style.display = "flex";
+        refreshBtn.innerHTML = `
+          <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-gray-700 dark:text-gray-300 inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <span class="hidden md:inline">Atualizando</span>
+        `;
+        refreshBtn.disabled = true;
+        
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        
+        let rawData = [];
+        if (data && Array.isArray(data)) {
+          rawData = data;
+        } else if (data && data.rows && Array.isArray(data.rows)) {
+          rawData = data.rows;
+        } else {
+          throw new Error("Formato de dados inválido");
+        }
+        
+        // Filtrar para trazer apenas os itens com status diferente de "OK"
+        allData = rawData.filter(item => {
+          const status = item.STATUS?.toString().toUpperCase();
+          return status !== "OK";
+        });
+        
+        filteredData = [...allData];
+        
+        updateStats(allData);
+        createAlerts(allData);
+        updateView(allData);
+        
+        const now = new Date();
+        document.getElementById("lastUpdate").textContent = `Última atualização: ${now.toLocaleTimeString('pt-BR')}`;
+        
+      } catch (err) {
+        console.error("Erro ao carregar dados:", err);
+        document.getElementById("alertsContainer").innerHTML = `
+          <div class="p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800">
+            <div class="flex items-start">
+              <div class="flex-shrink-0 pt-0.5">
+                <svg class="h-5 w-5 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div class="ml-3 flex-1">
+                <h3 class="text-sm font-medium text-red-800 dark:text-red-200">Erro ao carregar dados</h3>
+                <div class="mt-1 text-sm text-red-700 dark:text-red-300">
+                  <p>${err.message || 'Falha na conexão com o servidor'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      } finally {
+        loading.style.opacity = 0;
+        setTimeout(() => loading.style.display = "none", 300);
+        
+        refreshBtn.innerHTML = `
+          <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span class="hidden md:inline">Atualizar</span>
+        `;
+        refreshBtn.disabled = false;
+      }
+    }
+
+    function toggleDarkMode() {
+      const html = document.documentElement;
+      html.classList.toggle('dark');
+      const isDark = html.classList.contains('dark');
+      localStorage.setItem('darkMode', isDark);
+      
+      if (isDark) {
+        html.classList.remove('light');
+        html.classList.add('dark');
+      } else {
+        html.classList.remove('dark');
+        html.classList.add('light');
+      }
+      
+      document.getElementById('sunIcon').classList.toggle('hidden', isDark);
+      document.getElementById('moonIcon').classList.toggle('hidden', !isDark);
+    }
+
+    function checkDarkModePreference() {
+      const savedMode = localStorage.getItem('darkMode');
+      const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      const html = document.documentElement;
+      
+      if (savedMode === 'true' || (savedMode === null && prefersDark)) {
+        html.classList.add('dark');
+        html.classList.remove('light');
+        document.getElementById('sunIcon').classList.add('hidden');
+        document.getElementById('moonIcon').classList.remove('hidden');
+      } else {
+        html.classList.add('light');
+        html.classList.remove('dark');
+        document.getElementById('sunIcon').classList.remove('hidden');
+        document.getElementById('moonIcon').classList.add('hidden');
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      checkDarkModePreference();
+      document.getElementById('themeToggle').addEventListener('click', toggleDarkMode);
+      
+      document.getElementById('viewToggle').addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.getElementById('viewDropdown').classList.toggle('hidden');
+      });
+      
+      document.querySelectorAll('.view-option').forEach(option => {
+        option.addEventListener('click', (e) => {
+          const view = e.currentTarget.dataset.view;
+          toggleView(view);
+          document.getElementById('viewDropdown').classList.add('hidden');
+        });
+      });
+      
+      document.addEventListener('click', () => {
+        document.getElementById('viewDropdown').classList.add('hidden');
+      });
+      
+      carregarTabela();
+      
+      const preferredView = localStorage.getItem('preferredView') || 'table';
+      toggleView(preferredView);
+      
+      document.getElementById('refreshBtn').addEventListener('click', carregarTabela);
+      
+      const searchInput = document.getElementById('searchInput');
+      searchInput.addEventListener('input', (e) => {
+        filterData(e.target.value);
+      });
+      
+      searchInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+          searchInput.blur();
+        }
+      });
+      
+      document.getElementById('prevPage').addEventListener('click', () => {
+        if (currentPage > 1) {
+          currentPage--;
+          updateView(filteredData, currentPage);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+      
+      document.getElementById('nextPage').addEventListener('click', () => {
+        const totalPages = Math.ceil(filteredData.length / rowsPerPage);
+        if (currentPage < totalPages) {
+          currentPage++;
+          updateView(filteredData, currentPage);
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    });
+  </script>
+</body>
+</html>
